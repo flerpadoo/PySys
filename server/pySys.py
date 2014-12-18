@@ -1,5 +1,6 @@
 #!/usr/bin/python
-import base64, os, time, sys, termcolor, smtplib
+import base64, os, time, sys, termcolor, smtplib, datetime
+from pySysLib import *
 from socket import *
 myHost = ''
 myPort = 50007
@@ -18,6 +19,9 @@ sockobj.bind((myHost, myPort))
 sockobj.listen(5)
 def now():
     return time.ctime(time.time())
+def getCurrentDateTime():
+    currentDateTime = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+    return currentDateTime
 def printAlert(s, level):
 	if level == 5:
 		print termcolor.colored(s, 'red')
@@ -29,17 +33,31 @@ def reapChildren():
 def handleClient(connection, address):
     #time.sleep(5) # simulate a blocking activity
     while True:
-        data = connection.recv(2048)
+        data = decryptData(connection.recv(2048)) 
         if not data:
 		break
+	lineMsg = searchStrings(data)
 	if str(address[0]) != "HOME IP ADDRESS":
-		lineMsg = "[ALERT: UNKNOWN ORIGIN - DIRECT][" + str(now()) + "] " + str(address[0])+":"+str(address[1]) + " ==> " + str(data)
+		lineMsg = "[ALERT: UNKNOWN ORIGIN - DIRECT][" + str(now()) + "] " + str(address[0])+":"+str(address[1]) + " ==> " + str(lineMsg)
 		writeToLog(lineMsg)
 		printAlert(lineMsg, 5)
 	if str(address[0]) == "184.172.7.234":
-		lineMsg = "[" + str(now()) + "] " + str(address[0])+":"+str(address[1]) + " ==> " + str(data)
+		lineMsg = "[" + str(now()) + "] " + str(address[0])+":"+str(address[1]) + " ==> " + str(lineMsg)
 		writeToLog(lineMsg)
 		print(lineMsg)
+	            	if "COMPROMISE OVER HTTP(S)" in lineMsg:
+                urls = findURL(data)
+                for url in urls:
+                    	curlOutFile = "dl/evil@" + getCurrentDateTime() + ".snaggled"
+                    	downloadMsg = "Downloading file @ " + url + " and storing it under " + curlOutFile
+                    	writeToLog(downloadMsg)
+                    	print(downloadMsg)
+                    	messageReturn = "curl -s " + url + " -o " + curlOutFile
+                    	connection.send(encryptData(messageReturn))
+                    	connection.send(encryptData(curlOutFile))
+                    	downloadFile(connection, curlOutFile) 
+            	messageReturn = "Done with line"
+            	connection.send(encryptData(messageReturn))
 	if "ALERT" in lineMsg:
 		global alertStack
 		alertStack += [lineMsg]
@@ -48,6 +66,15 @@ def handleClient(connection, address):
 			emailer(alertHeader + '\n'.join(alertStack) + alertFooter + now())
     connection.close()
     os._exit(0)
+def downloadFile(connection, curlOutFile): # receives the file using binary through sockets
+    f = open(curlOutFile, 'wb')
+    l = connection.recv(1024)
+    while (l):
+        f.write(l)
+        l = connection.recv(1024)
+        if 'finish' in l:
+            break
+    f.close()
 def emailer(messageContent):
 	fromAddress = 'pySysLog'
 	toAddress  = 'yourtoemail@whatever.com'
