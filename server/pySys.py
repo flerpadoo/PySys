@@ -2,8 +2,9 @@
 import base64, os, time, sys, termcolor, smtplib, datetime
 from pySysLib import *
 from socket import *
-myHost = ''
-myPort = 50007
+myHost = pySysSetting['servername']   
+myPort = int(pySysSetting['listeningport']) 
+clientAddress = clientSetting['clientaddress']
 alertStack = []
 activeChildren = []
 registeredHosts = []
@@ -37,25 +38,25 @@ def handleClient(connection, address):
         if not data:
 		break
 	lineMsg = searchStrings(data)
-	if str(address[0]) != "HOME IP ADDRESS":
+	if str(address[0]) != clientAddress:
 		lineMsg = "[ALERT: UNKNOWN ORIGIN - DIRECT][" + str(now()) + "] " + str(address[0])+":"+str(address[1]) + " ==> " + str(lineMsg)
 		writeToLog(lineMsg)
 		printAlert(lineMsg, 5)
-	if str(address[0]) == "184.172.7.234":
+	if str(address[0]) == clientAddress:
 		lineMsg = "[" + str(now()) + "] " + str(address[0])+":"+str(address[1]) + " ==> " + str(lineMsg)
 		writeToLog(lineMsg)
 		print(lineMsg)
-	            	if "COMPROMISE OVER HTTP(S)" in lineMsg:
-                urls = findURL(data)
-                for url in urls:
-                    	curlOutFile = "dl/evil@" + getCurrentDateTime() + ".snaggled"
-                    	downloadMsg = "Downloading file @ " + url + " and storing it under " + curlOutFile
-                    	writeToLog(downloadMsg)
-                    	print(downloadMsg)
-                    	messageReturn = "curl -s " + url + " -o " + curlOutFile
-                    	connection.send(encryptData(messageReturn))
-                    	connection.send(encryptData(curlOutFile))
-                    	downloadFile(connection, curlOutFile) 
+	        if "COMPROMISE OVER HTTP(S)" in lineMsg:
+                	urls = findURL(data)
+                	for url in urls:
+                    		curlOutFile = "dl/evil@" + getCurrentDateTime() + ".snaggled"
+                    		downloadMsg = "Downloading file @ " + url + " and storing it under " + curlOutFile
+                    		writeToLog(downloadMsg)
+                    		print(downloadMsg)
+                    		messageReturn = "curl -s " + url + " -o " + curlOutFile
+                    		connection.send(encryptData(messageReturn))
+                    		connection.send(encryptData(curlOutFile))
+                    		downloadFile(connection, curlOutFile) 
             	messageReturn = "Done with line"
             	connection.send(encryptData(messageReturn))
 	if "ALERT" in lineMsg:
@@ -76,11 +77,11 @@ def downloadFile(connection, curlOutFile): # receives the file using binary thro
             break
     f.close()
 def emailer(messageContent):
-	fromAddress = 'pySysLog'
-	toAddress  = 'yourtoemail@whatever.com'
-	username = 'yourfromemail@gmail.com'
-	password = base64.b64decode('XXXXXXXXXXXXXXXXXXXXXXXXX')
-	server = smtplib.SMTP('smtp.gmail.com:587')
+    	fromAddress = alertInfo['fromaddress']
+    	toAddress  = alertInfo['toaddress']
+    	username = alertInfo['username']
+    	password = base64.b64decode(alertInfo['password'])
+    	server = smtplib.SMTP(alertInfo['smtp'])
 	server.starttls()
 	server.login(username,password)
 	server.sendmail(fromAddress,toAddress,messageContent)
