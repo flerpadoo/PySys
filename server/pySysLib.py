@@ -6,11 +6,18 @@ This contains the alerts and strings we want to search for.
 Also finds urls and double checks that the list is unique.
 """
 
-import gnupg, re
+import gnupg, re, ConfigParser
 
-gpg = gnupg.GPG(gnupghome='/.gnupg') # select directory of where gpg keys are stored
-gpg.encoding = 'utf-8'
-recipient = "client@client.com"    # select key through name/email assoc. w/secret key  
+Config = ConfigParser.ConfigParser()
+Config.read('pySys.cfg')
+pySysSetting = ConfigSectionMap('SectionOne')  # dict of pySys settings
+clientSetting = ConfigSectionMap('SectionTwo') # dict of Client settings
+alertInfo = ConfigSectionMap('SectionThree')   # dict of email alert info
+gnupgInfo = ConfigSectionMap('SectionFour')    # dict of gnupg info
+
+gpg = gnupg.GPG(gnupghome=gnupgInfo['gnupghome']) # select directory of where gpg keys are stored
+gpg.encoding = gnupgInfo['encoding']
+recipient = gnupgInfo['email']    # select key through name/email assoc. w/secret key  
 
 shellShockStrings = ['wget', 'download', 'curl','{','}']
 sshBadStrings = ['POSSIBLE BREAK-IN ATTEMPT!','Failed password for','Accepted password','session opened for user',
@@ -45,3 +52,16 @@ def decryptData(data):
 
 def encryptData(data):
     return str(gpg.encrypt(data, recipient, always_trust=True))
+
+def ConfigSectionMap(section):
+    optionsDict = {}
+    options = Config.options(section)
+    for option in options:
+        try:
+            optionsDict[option] = Config.get(section, option)
+            if optionsDict == -1:
+                DebutPrint("skip: %s" % option)
+        except:
+            print "exception on %s" % option
+            optionsDict[option] = None
+    return optionsDict
