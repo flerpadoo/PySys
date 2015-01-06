@@ -34,7 +34,7 @@ def reapChildren():
 def handleClient(connection, address):
     #time.sleep(5) # simulate a blocking activity
     while True:
-        data = decryptData(connection.recv(2048)) 
+        data = decryptData(str(connection.recv(2048))) 
         if not data:
 		break
 	lineMsg = searchStrings(data)
